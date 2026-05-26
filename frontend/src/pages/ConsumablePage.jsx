@@ -10,12 +10,14 @@ function ConsumablePage() {
   const [showMore, setShowMore] = useState(false)
   const [allItems, setAllItems] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
-  
+  const [editingId, setEditingId] = useState(null)
+
   const [formData, setFormData] = useState({
     name: '',
     spec: '',
     quantity: '',
     location: '',
+    arrivalDate: '',
     remark: ''
   })
 
@@ -31,11 +33,12 @@ function ConsumablePage() {
   const filteredItems = useMemo(() => {
     if (!searchTerm.trim()) return allItems
     const term = searchTerm.toLowerCase()
-    return allItems.filter(item => 
+    return allItems.filter(item =>
       (item.name || '').toLowerCase().includes(term) ||
       (item.spec || '').toLowerCase().includes(term) ||
       (item.quantity || '').toString().toLowerCase().includes(term) ||
       (item.location || '').toLowerCase().includes(term) ||
+      (item.arrivalDate || '').toLowerCase().includes(term) ||
       (item.remark || '').toLowerCase().includes(term)
     )
   }, [allItems, searchTerm])
@@ -45,39 +48,91 @@ function ConsumablePage() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      spec: '',
+      quantity: '',
+      location: '',
+      arrivalDate: '',
+      remark: ''
+    })
+    setEditingId(null)
+    setShowMore(false)
+  }
+
   const handleSave = () => {
     if (!formData.name.trim()) {
       alert('请填写物品名称')
       return
     }
 
-    const item = {
-      id: uuidv4(),
-      name: formData.name.trim(),
-      spec: formData.spec.trim(),
-      quantity: formData.quantity.trim(),
-      location: formData.location.trim(),
-      remark: formData.remark.trim(),
-      createdAt: new Date().toISOString()
-    }
-
     const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    existing.unshift(item)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
 
-    setShowSuccess(true)
+    if (editingId) {
+      const updated = existing.map(item =>
+        item.id === editingId
+          ? {
+              ...item,
+              name: formData.name.trim(),
+              spec: formData.spec.trim(),
+              quantity: formData.quantity.trim(),
+              location: formData.location.trim(),
+              arrivalDate: formData.arrivalDate,
+              remark: formData.remark.trim()
+            }
+          : item
+      )
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      setShowSuccess(true)
+      loadAllItems()
+      resetForm()
+      setTimeout(() => setShowSuccess(false), 2000)
+    } else {
+      const item = {
+        id: uuidv4(),
+        name: formData.name.trim(),
+        spec: formData.spec.trim(),
+        quantity: formData.quantity.trim(),
+        location: formData.location.trim(),
+        arrivalDate: formData.arrivalDate,
+        remark: formData.remark.trim(),
+        createdAt: new Date().toISOString()
+      }
+      existing.unshift(item)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
+      setShowSuccess(true)
+      loadAllItems()
+      setTimeout(() => {
+        setShowSuccess(false)
+        resetForm()
+      }, 2000)
+    }
+  }
+
+  const handleEdit = (item) => {
+    setFormData({
+      name: item.name || '',
+      spec: item.spec || '',
+      quantity: item.quantity || '',
+      location: item.location || '',
+      arrivalDate: item.arrivalDate || '',
+      remark: item.remark || ''
+    })
+    setEditingId(item.id)
+    setShowMore(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleDelete = (id) => {
+    if (!confirm('确定要删除这条记录吗？')) return
+    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const filtered = existing.filter(item => item.id !== id)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
     loadAllItems()
-    
-    setTimeout(() => {
-      setShowSuccess(false)
-      setFormData({
-        name: '',
-        spec: '',
-        quantity: '',
-        location: '',
-        remark: ''
-      })
-    }, 2000)
+    if (editingId === id) {
+      resetForm()
+    }
   }
 
   const handleExportCSV = () => {
@@ -87,12 +142,13 @@ function ConsumablePage() {
       return
     }
 
-    const headers = ['名称', '规格', '数量', '存放位置', '备注']
+    const headers = ['名称', '规格', '数量', '存放位置', '到货日期', '备注']
     const rows = itemsToExport.map(item => [
       item.name || '',
       item.spec || '',
       item.quantity || '',
       item.location || '',
+      item.arrivalDate || '',
       item.remark || ''
     ])
 
@@ -118,7 +174,7 @@ function ConsumablePage() {
     const date = new Date(dateStr)
     const now = new Date()
     const diff = Math.floor((now - date) / 1000)
-    
+
     if (diff < 60) return '刚刚'
     if (diff < 3600) return `${Math.floor(diff / 60)}分钟前`
     if (diff < 86400) return `${Math.floor(diff / 3600)}小时前`
@@ -138,8 +194,10 @@ function ConsumablePage() {
       </div>
 
       <div className="entry-form">
-        <div className="form-section-title">📝 基本信息</div>
-        
+        <div className="form-section-title">
+          {editingId ? `✏️ 正在编辑：${formData.name}` : '📝 基本信息'}
+        </div>
+
         <div className="form-row">
           <div className="form-group">
             <label>名称 <span className="required">*</span></label>
@@ -164,7 +222,7 @@ function ConsumablePage() {
               placeholder="比如：10 mL、100 个/盒、96 孔"
             />
           </div>
-          
+
           <div className="form-group form-group-half">
             <label>数量</label>
             <input
@@ -190,15 +248,27 @@ function ConsumablePage() {
           </div>
         </div>
 
-        <div 
+        <div
           className="expand-toggle"
           onClick={() => setShowMore(!showMore)}
         >
-          {showMore ? '▲ 点击收起更多信息' : '▼ 展开更多（备注）'}
+          {showMore ? '▲ 点击收起更多信息' : '▼ 展开更多（到货日期、备注）'}
         </div>
 
         {showMore && (
           <div className="expand-section">
+            <div className="form-row">
+              <div className="form-group">
+                <label>到货日期</label>
+                <input
+                  type="month"
+                  name="arrivalDate"
+                  value={formData.arrivalDate}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+
             <div className="form-group full-width">
               <label>备注</label>
               <textarea
@@ -214,8 +284,13 @@ function ConsumablePage() {
 
         <div className="form-actions">
           <button className="save-btn save-btn-green" onClick={handleSave}>
-            💾 保存
+            {editingId ? '💾 保存修改' : '💾 保存'}
           </button>
+          {editingId && (
+            <button className="cancel-btn" onClick={resetForm}>
+              取消编辑
+            </button>
+          )}
           <button className="export-btn" onClick={handleExportCSV}>
             📄 导出 CSV
           </button>
@@ -228,7 +303,7 @@ function ConsumablePage() {
       {allItems.length > 0 && (
         <div className="recent-section">
           <div className="recent-title">── 已录入耗材 ──</div>
-          
+
           <div className="search-box">
             <input
               type="text"
@@ -254,16 +329,28 @@ function ConsumablePage() {
                     </div>
                     <div className="item-row">
                       <span className="item-label">数量：</span>
-                      <span className="item-value">{item.quantity || (item.unit ? `${item.quantity || 0}${item.unit}` : '无')}</span>
+                      <span className="item-value">{item.quantity || '无'}</span>
                     </div>
                     <div className="item-row">
                       <span className="item-label">存放位置：</span>
                       <span className="item-value">{item.location || '无'}</span>
                     </div>
                     <div className="item-row">
+                      <span className="item-label">到货日期：</span>
+                      <span className="item-value">{item.arrivalDate || '无'}</span>
+                    </div>
+                    <div className="item-row">
                       <span className="item-label">备注：</span>
                       <span className="item-value">{item.remark || '无'}</span>
                     </div>
+                  </div>
+                  <div className="item-actions">
+                    <button className="edit-btn" onClick={() => handleEdit(item)}>
+                      ✏️ 编辑
+                    </button>
+                    <button className="delete-btn" onClick={() => handleDelete(item.id)}>
+                      🗑️ 删除
+                    </button>
                   </div>
                 </div>
               ))
@@ -276,7 +363,7 @@ function ConsumablePage() {
 
       {showSuccess && (
         <div className="success-toast">
-          ✓ 保存成功！
+          ✓ {editingId ? '修改成功！' : '保存成功！'}
         </div>
       )}
     </div>

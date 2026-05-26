@@ -10,6 +10,7 @@ function ReagentPage() {
   const [showMore, setShowMore] = useState(false)
   const [allItems, setAllItems] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [editingId, setEditingId] = useState(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -37,6 +38,7 @@ function ReagentPage() {
       (item.spec || '').toLowerCase().includes(term) ||
       (item.quantity || '').toString().toLowerCase().includes(term) ||
       (item.location || '').toLowerCase().includes(term) ||
+      (item.openDate || '').toLowerCase().includes(term) ||
       (item.remark || '').toLowerCase().includes(term)
     )
   }, [allItems, searchTerm])
@@ -46,41 +48,91 @@ function ReagentPage() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      spec: '',
+      quantity: '',
+      location: '',
+      openDate: '',
+      remark: ''
+    })
+    setEditingId(null)
+    setShowMore(false)
+  }
+
   const handleSave = () => {
     if (!formData.name.trim()) {
       alert('请填写物品名称')
       return
     }
 
-    const item = {
-      id: uuidv4(),
-      name: formData.name.trim(),
-      spec: formData.spec.trim(),
-      quantity: formData.quantity.trim(),
-      location: formData.location.trim(),
-      openDate: formData.openDate,
-      remark: formData.remark.trim(),
-      createdAt: new Date().toISOString()
-    }
-
     const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    existing.unshift(item)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
 
-    setShowSuccess(true)
+    if (editingId) {
+      const updated = existing.map(item =>
+        item.id === editingId
+          ? {
+              ...item,
+              name: formData.name.trim(),
+              spec: formData.spec.trim(),
+              quantity: formData.quantity.trim(),
+              location: formData.location.trim(),
+              openDate: formData.openDate,
+              remark: formData.remark.trim()
+            }
+          : item
+      )
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      setShowSuccess(true)
+      loadAllItems()
+      resetForm()
+      setTimeout(() => setShowSuccess(false), 2000)
+    } else {
+      const item = {
+        id: uuidv4(),
+        name: formData.name.trim(),
+        spec: formData.spec.trim(),
+        quantity: formData.quantity.trim(),
+        location: formData.location.trim(),
+        openDate: formData.openDate,
+        remark: formData.remark.trim(),
+        createdAt: new Date().toISOString()
+      }
+      existing.unshift(item)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
+      setShowSuccess(true)
+      loadAllItems()
+      setTimeout(() => {
+        setShowSuccess(false)
+        resetForm()
+      }, 2000)
+    }
+  }
+
+  const handleEdit = (item) => {
+    setFormData({
+      name: item.name || '',
+      spec: item.spec || '',
+      quantity: item.quantity || '',
+      location: item.location || '',
+      openDate: item.openDate || '',
+      remark: item.remark || ''
+    })
+    setEditingId(item.id)
+    setShowMore(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleDelete = (id) => {
+    if (!confirm('确定要删除这条记录吗？')) return
+    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const filtered = existing.filter(item => item.id !== id)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
     loadAllItems()
-
-    setTimeout(() => {
-      setShowSuccess(false)
-      setFormData({
-        name: '',
-        spec: '',
-        quantity: '',
-        location: '',
-        openDate: '',
-        remark: ''
-      })
-    }, 2000)
+    if (editingId === id) {
+      resetForm()
+    }
   }
 
   const handleExportCSV = () => {
@@ -96,7 +148,7 @@ function ReagentPage() {
       item.spec || '',
       item.quantity || '',
       item.location || '',
-      item.openDate || item.expiryDate || '',
+      item.openDate || '',
       item.remark || ''
     ])
 
@@ -142,7 +194,9 @@ function ReagentPage() {
       </div>
 
       <div className="entry-form">
-        <div className="form-section-title">📝 基本信息</div>
+        <div className="form-section-title">
+          {editingId ? `✏️ 正在编辑：${formData.name}` : '📝 基本信息'}
+        </div>
 
         <div className="form-row">
           <div className="form-group">
@@ -230,8 +284,13 @@ function ReagentPage() {
 
         <div className="form-actions">
           <button className="save-btn" onClick={handleSave}>
-            💾 保存
+            {editingId ? '💾 保存修改' : '💾 保存'}
           </button>
+          {editingId && (
+            <button className="cancel-btn" onClick={resetForm}>
+              取消编辑
+            </button>
+          )}
           <button className="export-btn" onClick={handleExportCSV}>
             📄 导出 CSV
           </button>
@@ -278,12 +337,20 @@ function ReagentPage() {
                     </div>
                     <div className="item-row">
                       <span className="item-label">开启日期：</span>
-                      <span className="item-value">{item.openDate || item.expiryDate || '无'}</span>
+                      <span className="item-value">{item.openDate || '无'}</span>
                     </div>
                     <div className="item-row">
                       <span className="item-label">备注：</span>
                       <span className="item-value">{item.remark || '无'}</span>
                     </div>
+                  </div>
+                  <div className="item-actions">
+                    <button className="edit-btn" onClick={() => handleEdit(item)}>
+                      ✏️ 编辑
+                    </button>
+                    <button className="delete-btn" onClick={() => handleDelete(item.id)}>
+                      🗑️ 删除
+                    </button>
                   </div>
                 </div>
               ))
@@ -296,7 +363,7 @@ function ReagentPage() {
 
       {showSuccess && (
         <div className="success-toast">
-          ✓ 保存成功！
+          ✓ {editingId ? '修改成功！' : '保存成功！'}
         </div>
       )}
     </div>
