@@ -4,6 +4,39 @@ import { v4 as uuidv4 } from 'uuid'
 
 const STORAGE_KEY = 'lab_reagents'
 
+const DEFAULT_REAGENTS = [
+  {
+    id: 'reagent-demo-1',
+    name: '无水乙醇',
+    spec: '500 mL',
+    quantity: '2 瓶',
+    location: '试剂柜 A-1',
+    openDate: '2026-05',
+    remark: '常用有机试剂',
+    createdAt: '2026-05-20T08:00:00.000Z'
+  },
+  {
+    id: 'reagent-demo-2',
+    name: 'DMSO',
+    spec: '100 mL',
+    quantity: '1 瓶',
+    location: '4℃冰箱 B-2',
+    openDate: '2026-05',
+    remark: '细胞实验常用',
+    createdAt: '2026-05-18T08:00:00.000Z'
+  },
+  {
+    id: 'reagent-demo-3',
+    name: 'PBS 缓冲液',
+    spec: '500 mL',
+    quantity: '3 瓶',
+    location: '试剂柜 B-1',
+    openDate: '2026-05',
+    remark: '常用缓冲液',
+    createdAt: '2026-05-15T08:00:00.000Z'
+  }
+]
+
 function ReagentPage() {
   const navigate = useNavigate()
   const [showSuccess, setShowSuccess] = useState(false)
@@ -22,8 +55,16 @@ function ReagentPage() {
   })
 
   useEffect(() => {
+    initDefaultData()
     loadAllItems()
   }, [])
+
+  const initDefaultData = () => {
+    const existing = localStorage.getItem(STORAGE_KEY)
+    if (!existing || JSON.parse(existing).length === 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_REAGENTS))
+    }
+  }
 
   const loadAllItems = () => {
     const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
@@ -303,6 +344,10 @@ function ReagentPage() {
       {allItems.length > 0 && (
         <div className="recent-section">
           <div className="recent-title">── 已录入试剂 ──</div>
+
+          <div className="demo-hint">
+            以下为示例数据，可编辑或删除；新增数据将保存在当前浏览器中。
+          </div>
 
           <div className="search-box">
             <input

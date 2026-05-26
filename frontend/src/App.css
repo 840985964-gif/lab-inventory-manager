@@ -514,6 +514,16 @@ body {
   flex: 1;
 }
 
+.demo-hint {
+  text-align: center;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background-color: #f3f4f6;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
 .search-box {
   margin-bottom: 16px;
 }

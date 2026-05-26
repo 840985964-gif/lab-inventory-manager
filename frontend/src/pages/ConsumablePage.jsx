@@ -4,6 +4,39 @@ import { v4 as uuidv4 } from 'uuid'
 
 const STORAGE_KEY = 'lab_consumables'
 
+const DEFAULT_CONSUMABLES = [
+  {
+    id: 'consumable-demo-1',
+    name: '96 孔板',
+    spec: '无菌，平底',
+    quantity: '5 盒',
+    location: '耗材柜 C-1',
+    arrivalDate: '2026-05',
+    remark: '细胞实验常用',
+    createdAt: '2026-05-10T08:00:00.000Z'
+  },
+  {
+    id: 'consumable-demo-2',
+    name: '1.5 mL 离心管',
+    spec: '500 支/包',
+    quantity: '2 包',
+    location: '耗材柜 A-2',
+    arrivalDate: '2026-05',
+    remark: '常规耗材',
+    createdAt: '2026-05-08T08:00:00.000Z'
+  },
+  {
+    id: 'consumable-demo-3',
+    name: '10 μL 枪头',
+    spec: '盒装，无菌',
+    quantity: '4 盒',
+    location: '耗材柜 B-3',
+    arrivalDate: '2026-05',
+    remark: '移液器配套耗材',
+    createdAt: '2026-05-12T08:00:00.000Z'
+  }
+]
+
 function ConsumablePage() {
   const navigate = useNavigate()
   const [showSuccess, setShowSuccess] = useState(false)
@@ -22,8 +55,16 @@ function ConsumablePage() {
   })
 
   useEffect(() => {
+    initDefaultData()
     loadAllItems()
   }, [])
+
+  const initDefaultData = () => {
+    const existing = localStorage.getItem(STORAGE_KEY)
+    if (!existing || JSON.parse(existing).length === 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_CONSUMABLES))
+    }
+  }
 
   const loadAllItems = () => {
     const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
@@ -303,6 +344,10 @@ function ConsumablePage() {
       {allItems.length > 0 && (
         <div className="recent-section">
           <div className="recent-title">── 已录入耗材 ──</div>
+
+          <div className="demo-hint">
+            以下为示例数据，可编辑或删除；新增数据将保存在当前浏览器中。
+          </div>
 
           <div className="search-box">
             <input
