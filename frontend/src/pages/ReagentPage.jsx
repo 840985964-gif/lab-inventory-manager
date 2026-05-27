@@ -1,46 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { v4 as uuidv4 } from 'uuid'
 
-const STORAGE_KEY = 'lab_reagents'
-
-const DEFAULT_REAGENTS = [
-  {
-    id: 'reagent-demo-1',
-    name: '无水乙醇',
-    spec: '500 mL',
-    quantity: '2 瓶',
-    location: '试剂柜 A-1',
-    openDate: '2026-05',
-    remark: '常用有机试剂',
-    createdAt: '2026-05-20T08:00:00.000Z'
-  },
-  {
-    id: 'reagent-demo-2',
-    name: 'DMSO',
-    spec: '100 mL',
-    quantity: '1 瓶',
-    location: '4℃冰箱 B-2',
-    openDate: '2026-05',
-    remark: '细胞实验常用',
-    createdAt: '2026-05-18T08:00:00.000Z'
-  },
-  {
-    id: 'reagent-demo-3',
-    name: 'PBS 缓冲液',
-    spec: '500 mL',
-    quantity: '3 瓶',
-    location: '试剂柜 B-1',
-    openDate: '2026-05',
-    remark: '常用缓冲液',
-    createdAt: '2026-05-15T08:00:00.000Z'
-  }
-]
+const STORAGE_KEY = 'lab_reagent_locations'
 
 function ReagentPage() {
   const navigate = useNavigate()
+  const { locationId } = useParams()
   const [showSuccess, setShowSuccess] = useState(false)
   const [showMore, setShowMore] = useState(false)
+  const [location, setLocation] = useState(null)
   const [allItems, setAllItems] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
   const [editingId, setEditingId] = useState(null)
@@ -49,26 +18,24 @@ function ReagentPage() {
     name: '',
     spec: '',
     quantity: '',
-    location: '',
+    detailLocation: '',
     openDate: '',
     remark: ''
   })
 
   useEffect(() => {
-    initDefaultData()
-    loadAllItems()
-  }, [])
+    loadLocationData()
+  }, [locationId])
 
-  const initDefaultData = () => {
-    const existing = localStorage.getItem(STORAGE_KEY)
-    if (!existing || JSON.parse(existing).length === 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_REAGENTS))
+  const loadLocationData = () => {
+    const locations = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const found = locations.find(loc => loc.id === locationId)
+    if (found) {
+      setLocation(found)
+      setAllItems(found.reagents || [])
+    } else {
+      navigate('/reagent')
     }
-  }
-
-  const loadAllItems = () => {
-    const list = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    setAllItems(list)
   }
 
   const filteredItems = useMemo(() => {
@@ -78,7 +45,7 @@ function ReagentPage() {
       (item.name || '').toLowerCase().includes(term) ||
       (item.spec || '').toLowerCase().includes(term) ||
       (item.quantity || '').toString().toLowerCase().includes(term) ||
-      (item.location || '').toLowerCase().includes(term) ||
+      (item.detailLocation || '').toLowerCase().includes(term) ||
       (item.openDate || '').toLowerCase().includes(term) ||
       (item.remark || '').toLowerCase().includes(term)
     )
@@ -94,12 +61,16 @@ function ReagentPage() {
       name: '',
       spec: '',
       quantity: '',
-      location: '',
+      detailLocation: '',
       openDate: '',
       remark: ''
     })
     setEditingId(null)
     setShowMore(false)
+  }
+
+  const saveLocations = (locations) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(locations))
   }
 
   const handleSave = () => {
@@ -108,25 +79,30 @@ function ReagentPage() {
       return
     }
 
-    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const locations = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const locIndex = locations.findIndex(loc => loc.id === locationId)
+    if (locIndex === -1) return
+
+    const reagents = locations[locIndex].reagents || []
 
     if (editingId) {
-      const updated = existing.map(item =>
+      const updatedReagents = reagents.map(item =>
         item.id === editingId
           ? {
               ...item,
               name: formData.name.trim(),
               spec: formData.spec.trim(),
               quantity: formData.quantity.trim(),
-              location: formData.location.trim(),
+              detailLocation: formData.detailLocation.trim(),
               openDate: formData.openDate,
               remark: formData.remark.trim()
             }
           : item
       )
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      locations[locIndex].reagents = updatedReagents
+      saveLocations(locations)
       setShowSuccess(true)
-      loadAllItems()
+      loadLocationData()
       resetForm()
       setTimeout(() => setShowSuccess(false), 2000)
     } else {
@@ -135,15 +111,16 @@ function ReagentPage() {
         name: formData.name.trim(),
         spec: formData.spec.trim(),
         quantity: formData.quantity.trim(),
-        location: formData.location.trim(),
+        detailLocation: formData.detailLocation.trim(),
         openDate: formData.openDate,
         remark: formData.remark.trim(),
         createdAt: new Date().toISOString()
       }
-      existing.unshift(item)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(existing))
+      reagents.unshift(item)
+      locations[locIndex].reagents = reagents
+      saveLocations(locations)
       setShowSuccess(true)
-      loadAllItems()
+      loadLocationData()
       setTimeout(() => {
         setShowSuccess(false)
         resetForm()
@@ -156,7 +133,7 @@ function ReagentPage() {
       name: item.name || '',
       spec: item.spec || '',
       quantity: item.quantity || '',
-      location: item.location || '',
+      detailLocation: item.detailLocation || '',
       openDate: item.openDate || '',
       remark: item.remark || ''
     })
@@ -167,10 +144,14 @@ function ReagentPage() {
 
   const handleDelete = (id) => {
     if (!confirm('确定要删除这条记录吗？')) return
-    const existing = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
-    const filtered = existing.filter(item => item.id !== id)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered))
-    loadAllItems()
+    const locations = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const locIndex = locations.findIndex(loc => loc.id === locationId)
+    if (locIndex === -1) return
+
+    const filtered = (locations[locIndex].reagents || []).filter(item => item.id !== id)
+    locations[locIndex].reagents = filtered
+    saveLocations(locations)
+    loadLocationData()
     if (editingId === id) {
       resetForm()
     }
@@ -183,12 +164,13 @@ function ReagentPage() {
       return
     }
 
-    const headers = ['名称', '规格', '数量', '存放位置', '开启日期', '备注']
+    const headers = ['名称', '规格', '数量', '存放点', '具体位置', '开启日期', '备注']
     const rows = itemsToExport.map(item => [
       item.name || '',
       item.spec || '',
       item.quantity || '',
-      item.location || '',
+      location?.name || '',
+      item.detailLocation || '',
       item.openDate || '',
       item.remark || ''
     ])
@@ -201,13 +183,21 @@ function ReagentPage() {
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = 'reagents_inventory.csv'
+
+    const today = new Date().toISOString().split('T')[0]
+    const safeName = (location?.name || '未知存放点').replace(/[\\/:*?"<>|]/g, '_')
+    link.download = `${today}_${safeName}_试剂清单.csv`
+
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
   }
 
   const handleBack = () => {
+    navigate('/reagent')
+  }
+
+  const handleBackHome = () => {
     navigate('/')
   }
 
@@ -222,16 +212,25 @@ function ReagentPage() {
     return `${Math.floor(diff / 86400)}天前`
   }
 
+  if (!location) {
+    return <div className="entry-page">加载中...</div>
+  }
+
   return (
     <div className="entry-page">
       <div className="entry-header">
         <button className="back-btn" onClick={handleBack}>
-          ← 返回
+          ← 返回试剂库
         </button>
         <div className="entry-title">
           <span className="entry-icon">🧪</span>
           试剂录入
         </div>
+      </div>
+
+      <div className="current-location-bar">
+        当前存放点：{location.name}
+        {location.remark && <span className="location-remark">（{location.remark}）</span>}
       </div>
 
       <div className="entry-form">
@@ -278,13 +277,13 @@ function ReagentPage() {
 
         <div className="form-row">
           <div className="form-group">
-            <label>📍 存放位置</label>
+            <label>📍 具体位置</label>
             <input
               type="text"
-              name="location"
-              value={formData.location}
+              name="detailLocation"
+              value={formData.detailLocation}
               onChange={handleChange}
-              placeholder="比如：A柜3层、试剂室2号架"
+              placeholder="比如：上层、下层、A区、第二层"
             />
           </div>
         </div>
@@ -335,76 +334,76 @@ function ReagentPage() {
           <button className="export-btn" onClick={handleExportCSV}>
             📄 导出 CSV
           </button>
-          <button className="back-home-btn" onClick={handleBack}>
+          <button className="back-home-btn" onClick={handleBackHome}>
             返回首页
           </button>
         </div>
       </div>
 
-      {allItems.length > 0 && (
-        <div className="recent-section">
-          <div className="recent-title">── 已录入试剂 ──</div>
+      <div className="recent-section">
+        <div className="recent-title">── 已录入试剂 ──</div>
 
-          <div className="demo-hint">
-            以下为示例数据，可编辑或删除；新增数据将保存在当前浏览器中。
-          </div>
+        {allItems.length === 0 ? (
+          <div className="no-results">该存放点暂无试剂，请新增记录。</div>
+        ) : (
+          <>
+            <div className="search-box">
+              <input
+                type="text"
+                placeholder="搜索试剂（名称、规格、数量、位置、备注）..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
-          <div className="search-box">
-            <input
-              type="text"
-              placeholder="搜索试剂（名称、规格、数量、位置、备注）..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="all-items-list">
-            {filteredItems.length > 0 ? (
-              filteredItems.map(item => (
-                <div key={item.id} className="item-card">
-                  <div className="item-header">
-                    <span className="item-icon">🧪</span>
-                    <span className="item-name">{item.name}</span>
-                    <span className="item-time">{formatTime(item.createdAt)}</span>
+            <div className="all-items-list">
+              {filteredItems.length > 0 ? (
+                filteredItems.map(item => (
+                  <div key={item.id} className="item-card">
+                    <div className="item-header">
+                      <span className="item-icon">🧪</span>
+                      <span className="item-name">{item.name}</span>
+                      <span className="item-time">{formatTime(item.createdAt)}</span>
+                    </div>
+                    <div className="item-details">
+                      <div className="item-row">
+                        <span className="item-label">规格：</span>
+                        <span className="item-value">{item.spec || '无'}</span>
+                      </div>
+                      <div className="item-row">
+                        <span className="item-label">数量：</span>
+                        <span className="item-value">{item.quantity || '无'}</span>
+                      </div>
+                      <div className="item-row">
+                        <span className="item-label">具体位置：</span>
+                        <span className="item-value">{item.detailLocation || '无'}</span>
+                      </div>
+                      <div className="item-row">
+                        <span className="item-label">开启日期：</span>
+                        <span className="item-value">{item.openDate || '无'}</span>
+                      </div>
+                      <div className="item-row">
+                        <span className="item-label">备注：</span>
+                        <span className="item-value">{item.remark || '无'}</span>
+                      </div>
+                    </div>
+                    <div className="item-actions">
+                      <button className="edit-btn" onClick={() => handleEdit(item)}>
+                        ✏️ 编辑
+                      </button>
+                      <button className="delete-btn" onClick={() => handleDelete(item.id)}>
+                        🗑️ 删除
+                      </button>
+                    </div>
                   </div>
-                  <div className="item-details">
-                    <div className="item-row">
-                      <span className="item-label">规格：</span>
-                      <span className="item-value">{item.spec || '无'}</span>
-                    </div>
-                    <div className="item-row">
-                      <span className="item-label">数量：</span>
-                      <span className="item-value">{item.quantity || '无'}</span>
-                    </div>
-                    <div className="item-row">
-                      <span className="item-label">存放位置：</span>
-                      <span className="item-value">{item.location || '无'}</span>
-                    </div>
-                    <div className="item-row">
-                      <span className="item-label">开启日期：</span>
-                      <span className="item-value">{item.openDate || '无'}</span>
-                    </div>
-                    <div className="item-row">
-                      <span className="item-label">备注：</span>
-                      <span className="item-value">{item.remark || '无'}</span>
-                    </div>
-                  </div>
-                  <div className="item-actions">
-                    <button className="edit-btn" onClick={() => handleEdit(item)}>
-                      ✏️ 编辑
-                    </button>
-                    <button className="delete-btn" onClick={() => handleDelete(item.id)}>
-                      🗑️ 删除
-                    </button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="no-results">暂无匹配的试剂</div>
-            )}
-          </div>
-        </div>
-      )}
+                ))
+              ) : (
+                <div className="no-results">暂无匹配的试剂</div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       {showSuccess && (
         <div className="success-toast">

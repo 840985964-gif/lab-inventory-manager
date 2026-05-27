@@ -201,7 +201,10 @@ function ConsumablePage() {
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = 'consumables_inventory.csv'
+
+    const today = new Date().toISOString().split('T')[0]
+    link.download = `${today}_耗材清单.csv`
+
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
